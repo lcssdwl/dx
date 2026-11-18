@@ -118,6 +118,8 @@ button { cursor: pointer; }
 }
 .device-item:hover { background: var(--surface-2); }
 .device-item.active { background: #eff6ff; border-color: #bfdbfe; }
+.device-del { opacity: 0; }
+.device-item:hover .device-del, .device-del:focus-visible { opacity: 1; }
 .dev-icon {
   width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px;
   background: #e0e7ff; color: #4338ca;
@@ -208,6 +210,7 @@ button { cursor: pointer; }
   }
   body.show-chat .chat-panel { transform: translateX(0); }
   .back-btn { display: inline-flex; }
+  .device-del { opacity: 1; }
   .bubble { max-width: 84%; }
   .auth-card { padding: 24px; }
 }

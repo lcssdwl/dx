@@ -205,10 +205,17 @@
           <div class="dev-preview">${preview}</div>
           <div class="dev-id">${esc(d.id)}</div>
         </div>
+        <button class="icon-btn danger device-del" data-id="${esc(d.id)}" title="删除设备" aria-label="删除设备">✕</button>
       </div>`;
     }).join('');
     el.querySelectorAll('.device-item').forEach((item) => {
       item.addEventListener('click', () => selectDevice(item.dataset.id));
+    });
+    el.querySelectorAll('.device-del').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteDevice(btn.dataset.id);
+      });
     });
   }
 
@@ -360,13 +367,15 @@
     } catch (e) { toast(e.message, true); }
   }
 
-  async function deleteDevice() {
-    if (!currentId) return;
+  async function deleteDevice(id) {
+    if (!id) return;
     if (!confirm('确定删除该设备及其全部短信？此操作不可恢复。')) return;
     try {
-      await api(`api/devices/${encodeURIComponent(currentId)}`, 'DELETE');
-      currentId = null;
-      document.body.classList.remove('show-chat');
+      await api(`api/devices/${encodeURIComponent(id)}`, 'DELETE');
+      if (id === currentId) {
+        currentId = null;
+        document.body.classList.remove('show-chat');
+      }
       toast('设备已删除');
       await loadDevices();
     } catch (e) { toast(e.message, true); }
@@ -444,7 +453,7 @@
     $('btnApiDoc').onclick = apiDocModal;
     $('btnRefresh').onclick = () => { loadMessages(); loadDevices(); toast('已刷新'); };
     $('btnClear').onclick = clearMessages;
-    $('btnDelete').onclick = deleteDevice;
+    $('btnCloseChat').onclick = () => document.body.classList.remove('show-chat');
     $('btnBack').onclick = () => document.body.classList.remove('show-chat');
     $('searchInput').addEventListener('input', renderDevices);
     $('btnLogout').onclick = async () => {
