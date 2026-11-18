@@ -261,33 +261,7 @@ go test ./...
 
 集成测试覆盖加解密往返、Token 与登录凭证不明文落盘、旧数据迁移、篡改或跨用户复制 `cred_enc` 后无法登录、数据主密钥由 ini 追加串拼接派生、注册授权码校验与 ini 覆盖、设备唯一性、设备不存在/越权、短信明文正确返回及明文不落盘、多行短信格式解析与结构化返回、修改密码（且用户名不可修改）、邮箱绑定与找回密码、图形验证码与按 IP 锁定（锁 IP 不锁账号）、设备心跳在线判定、GET 方式接口、INI 配置解析、邮件未配置时禁用、后台 API 整包密文信封往返（含明文请求被拒）、认证接口密文往返（账号密码不明文，明文请求被拒，不带 cookie 的兼容）、JS 动态注入随机 key（每次不同且与 Cookie 一致、禁止缓存）、短信接口仍明文等流程。
 
-## 推送历史
+## 链接
 
-仓库地址：`https://github.com/lcssdwl/dx.git`（分支 `master`）
-
-| 提交 | 说明 |
-| --- | --- |
-| `304be43` | feat: 新消息铃声与设备未读红标 |
-| `1afca31` | feat: 删除设备按钮移到设备列表右侧，短信面板按钮改为关闭 |
-| `367bcbb` | feat: 内置 HTTPS 与 HTTP 自动跳转 HTTPS |
-| `0400f1a` | init: 短信中心单二进制服务（含前端整包加密与安全加固） |
-
-> 说明：历史曾被清空并重建为单一根提交 `0400f1a`，其上为后续功能提交。以上均已推送到远程 `master`。
-
-## 编译产物下载
-
-编译脚本 `build.bat` / `build.sh` 会生成以下单文件二进制（静态编译，无 libc 依赖，前端资源已内嵌）：
-
-| 平台 / 架构 | 产物文件 |
-| --- | --- |
-| Windows x86_64 | `dx-server-windows-amd64.exe` |
-| Linux x86_64 | `dx-server-linux-amd64` |
-| Linux ARM64 | `dx-server-linux-arm64` |
-
-- 源码与 Release 下载：`https://github.com/lcssdwl/dx/releases`（若已发布编译产物）或 `https://github.com/lcssdwl/dx` 克隆后自行编译。
-- 本地编译：`build.bat`（Windows）/ `build.sh`（Linux），或手动：
-  ```bash
-  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dx-server-linux-amd64 .
-  CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dx-server-linux-arm64 .
-  ```
-- 二进制未纳入 Git（被 `.gitignore` 忽略），请以源码编译或 Release 附件为准。
+- [提交历史记录](https://github.com/lcssdwl/dx/commits/master)
+- [编译产物下载](https://github.com/lcssdwl/dx/releases)
