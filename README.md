@@ -42,11 +42,15 @@
 # 编译（Windows）
 go build -o dx-server.exe .
 
-# 运行（默认监听 :8080，数据保存在 ./data）
+# 运行（默认监听 :8080，数据保存在 ./data，默认启用 HTTPS）
 dx-server.exe
 ```
 
-浏览器打开 `http://localhost:8080/sdwl/` 进入**登录页**（`login.html`），登录 / 注册成功后跳转到后台页 `index.html`，即可创建设备并查看 Token。直接打开后台页而未登录时会自动跳回登录页。
+浏览器打开 `https://localhost:8080/sdwl/` 进入**登录页**（`login.html`），登录 / 注册成功后跳转到后台页 `index.html`，即可创建设备并查看 Token。直接打开后台页而未登录时会自动跳回登录页。
+
+> **HTTP 自动跳 HTTPS**：内置 HTTPS 开启时，同一个端口同时接受 HTTP 与 HTTPS——用 `http://` 访问首页会收到 301 自动跳转到同主机同路径的 `https://`，无需手动改地址，也不会再出现 `crypto.subtle.digest` 报错。
+
+> **自签证书**：默认自动生成自签 HTTPS 证书（保存在 `data/tls_cert.pem` 与 `data/tls_key.pem`，重启复用，SAN 含 localhost、127.0.0.1 及本机所有网卡 IP，可用局域网 IP 访问）。浏览器首次访问会提示证书不受信任，选择"继续访问"即可——接受后页面即为安全上下文，前端 `crypto.subtle` 可用，登录不再报 `digest` 错误。正式环境请在 `config.ini [tls]` 填写 `cert`/`key` 指向受信任证书（Let's Encrypt 等）。
 
 **隐藏入口**：服务只响应 `/sdwl` 及其子路径，其他一切路径（含根路径 `/`、旧 `/api/...`）一律返回 404，用于隐藏后台存在。入口前缀在后端 `internal/server.go` 的 `entryPrefix` 常量中唯一定义；前端页面用相对路径（`api/...`、`style.css`、`app.js`、`login.js`），由浏览器基于 `/sdwl/` 自动解析，JS 中无需再写前缀。设备端接口需使用带前缀的完整路径 `/sdwl/api/...`（页面「设备接口」示例中会自动生成）。
 
@@ -59,9 +63,9 @@ dx-server.exe
 3. **后台阶段**（设备、短信查看、账号设置、Token）：密钥 = `SHA256("dx-api-v1:" + dx_session + ":" + client_key)`，后端从 `dx_session`、`dx_ck` 两个 Cookie 读取，前端用注入变量 + sessionStorage 里的 dx_session 计算；同样整包密文。缺少信封的请求被 `BAD_REQUEST` / `DECRYPT_FAILED` 拒绝。
 4. **设备接口**（短信上报 `/api/sms/receive`、心跳 `/api/device/heartbeat`）保持明文——设备端接口，不参与浏览器加密，报文格式不变。
 
-> 关于"防中间人"：密钥材料全部经 HttpOnly Cookie 与后端注入的脚本传递，不再明文出现在请求头或请求体。但 HTTPS 仍不可省：纯 HTTP 下中间人可篡改页面脚本。请务必在 Nginx/Caddy 终止 TLS 并启用 `DX_SECURE_COOKIE=true`、`DX_TRUSTED_PROXY=true`。在 HTTPS 之上，本层加密保证业务数据即使经过反向代理日志等旁观渠道也不以明文出现。
+> 关于"防中间人"：服务默认内置 HTTPS（自签证书开箱即用，正式环境换受信任证书），`SecureCookie` 默认随 HTTPS 开启。密钥材料全部经 HttpOnly Cookie 与后端注入的脚本传递，不再明文出现在请求头或请求体。若改由 Nginx/Caddy 终止 TLS，设 `DX_TLS_ENABLED=false` 关闭内置 HTTPS，并显式开启 `DX_SECURE_COOKIE=true`、`DX_TRUSTED_PROXY=true`。在 TLS 之上，本层加密保证业务数据即使经过反向代理日志等旁观渠道也不以明文出现。
 >
-> 兼容性：不带 `dx_ck` Cookie 的请求（curl / 脚本 / 集成测试）保持明文可用，方便自动化；浏览器则全程密文。`crypto.subtle` 仅在安全上下文可用，需通过 `localhost` 或 HTTPS 访问。
+> 兼容性：不带 `dx_ck` Cookie 的请求（curl / 脚本 / 集成测试）保持明文可用，方便自动化；浏览器则全程密文。`crypto.subtle` 仅在安全上下文可用，内置 HTTPS 或 `localhost` 均满足。自签证书在局域网 IP 下同样构成安全上下文，只是浏览器会提示证书不受信任，需手动信任一次。
 
 可选：启动时创建初始管理员（已存在则跳过）：
 

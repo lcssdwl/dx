@@ -23,6 +23,10 @@ type Config struct {
 	TrustedProxy    bool          // 是否信任 X-Forwarded-For（仅在反代后开启）
 	ShutdownTimeout time.Duration // 优雅退出等待时间
 
+	TLSEnabled  bool   // 是否启用内置 HTTPS（默认开启，前端 crypto.subtle 需要安全上下文）
+	TLSCertFile string // 自定义证书路径，留空则自动生成自签证书
+	TLSKeyFile  string // 自定义私钥路径
+
 	SMTPHost     string // 来自 config.ini [smtp]
 	SMTPPort     string
 	SMTPUser     string
@@ -47,13 +51,21 @@ func LoadConfig() Config {
 		APIRateLimit:       envInt("DX_API_RATE_LIMIT", 120),
 		AuthRateLimit:      envInt("DX_AUTH_RATE_LIMIT", 20),
 		MaxBodyBytes:       envInt64("DX_MAX_BODY_BYTES", 1<<20), // 1 MiB
-		SecureCookie:       envBool("DX_SECURE_COOKIE", false),
+		SecureCookie:       envBool("DX_SECURE_COOKIE", true),
 		TrustedProxy:       envBool("DX_TRUSTED_PROXY", false),
 		ShutdownTimeout:    5 * time.Second,
 		MailDebug:          envBool("DX_MAIL_DEBUG", false),
 		LoginMaxFail:       envInt("DX_LOGIN_MAX_FAIL", 5),
 		LoginLockMin:       envInt("DX_LOGIN_LOCK_MIN", 15),
 		RegisterAuthSecret: DefaultRegisterAuthSecret,
+		TLSEnabled:         envBool("DX_TLS_ENABLED", true),
+		TLSCertFile:        env("DX_TLS_CERT", ""),
+		TLSKeyFile:         env("DX_TLS_KEY", ""),
+	}
+	// 关闭内置 HTTPS 时（例如反代已终止 TLS），SecureCookie 默认关闭，
+	// 除非显式通过 DX_SECURE_COOKIE 指定。
+	if !c.TLSEnabled && os.Getenv("DX_SECURE_COOKIE") == "" {
+		c.SecureCookie = false
 	}
 
 	path := env("DX_CONFIG", "config.ini")
@@ -73,6 +85,22 @@ func LoadConfig() Config {
 				c.RegisterAuthSecret = DefaultRegisterAuthSecret + v
 			}
 		}
+		// HTTPS：环境变量优先，ini 作为补充。
+		if sec := data["tls"]; sec != nil {
+			if v := strings.TrimSpace(sec["enabled"]); v != "" && os.Getenv("DX_TLS_ENABLED") == "" {
+				c.TLSEnabled = strings.EqualFold(v, "true") || v == "1"
+			}
+			if v := strings.TrimSpace(sec["cert"]); v != "" && c.TLSCertFile == "" {
+				c.TLSCertFile = v
+			}
+			if v := strings.TrimSpace(sec["key"]); v != "" && c.TLSKeyFile == "" {
+				c.TLSKeyFile = v
+			}
+		}
+	}
+	// ini 指定关闭 HTTPS 且未显式设置 SecureCookie 时，SecureCookie 随之关闭。
+	if !c.TLSEnabled && os.Getenv("DX_SECURE_COOKIE") == "" {
+		c.SecureCookie = false
 	}
 	smtp, enabled, err := loadSMTPConfig(path)
 	if err != nil {

@@ -6,10 +6,12 @@ import (
 	"errors"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -43,8 +45,43 @@ func main() {
 		MaxHeaderBytes:    1 << 16,
 	}
 
+	var redirectSrv atomic.Pointer[http.Server]
 	go func() {
-		log.Printf("短信服务已启动: http://%s (数据目录: %s)", cfg.Addr, cfg.DataDir)
+		if cfg.TLSEnabled {
+			certFile, keyFile, err := ensureTLSCert(cfg.DataDir, cfg.TLSCertFile, cfg.TLSKeyFile)
+			if err != nil {
+				log.Fatalf("准备 TLS 证书失败: %v", err)
+			}
+			ln, err := net.Listen("tcp", cfg.Addr)
+			if err != nil {
+				log.Fatalf("监听 %s 失败: %v", cfg.Addr, err)
+			}
+			proto := newProtoListener(ln)
+
+			// HTTP 请求自动 301 跳转到 HTTPS，同端口共存。
+			redirect := &http.Server{
+				Handler:           httpToHTTPSHandler(),
+				ReadHeaderTimeout: 5 * time.Second,
+			}
+			redirectSrv.Store(redirect)
+			go func() {
+				if err := redirect.Serve(proto.plainListener()); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
+					log.Printf("HTTP 重定向服务退出: %v", err)
+				}
+			}()
+
+			note := ""
+			if cfg.TLSCertFile == "" {
+				note = "（自签证书，浏览器首次访问需信任）"
+			}
+			log.Printf("短信服务已启动: https://%s%s (数据目录: %s, 证书: %s)", cfg.Addr, note, cfg.DataDir, certFile)
+			log.Printf("HTTP 访问同端口将自动 301 跳转到 HTTPS")
+			if err := srv.ServeTLS(proto.tlsListener(), certFile, keyFile); err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
+				log.Fatalf("服务异常退出: %v", err)
+			}
+			return
+		}
+		log.Printf("短信服务已启动: http://%s (数据目录: %s, 内置 HTTPS 已关闭)", cfg.Addr, cfg.DataDir)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("服务异常退出: %v", err)
 		}
@@ -56,6 +93,11 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
+	if redirect := redirectSrv.Load(); redirect != nil {
+		if err := redirect.Shutdown(ctx); err != nil {
+			log.Printf("重定向服务退出失败: %v", err)
+		}
+	}
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("优雅退出失败: %v", err)
 	}
