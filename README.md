@@ -242,7 +242,7 @@ $code = -join ($md5.ComputeHash([Text.Encoding]::UTF8.GetBytes("alice" + "secret
 
 ## 安全说明
 
-- **传输**：内置 HTTP，生产环境请在前面部署 Nginx/Caddy 并启用 HTTPS，同时设置 `DX_SECURE_COOKIE=true`、`DX_TRUSTED_PROXY=true`。
+- **传输**：默认内置 HTTPS（自签证书开箱即用，可配正式证书），HTTP 访问同端口自动 301 跳转 HTTPS；`SecureCookie` 默认随 HTTPS 开启。若改由 Nginx/Caddy 终止 TLS，设 `DX_TLS_ENABLED=false` 并显式开启 `DX_SECURE_COOKIE=true`、`DX_TRUSTED_PROXY=true`。详见 `HTTPS.md`。
 - **鉴权**：设备上报用高熵 Token（32 字节随机数，URL-safe base64）；后台用 HttpOnly + SameSite=Lax 会话 Cookie，服务端保存会话，退出即失效。
 - **加密**：短信密文用用户 Token 派生的 AES-256-GCM 密钥加密，不同用户密钥不同；`meta.json` 不存明文 Token，只存 SHA-256 哈希（鉴权查找）+ 主密钥密文（后台解密短信用）。**用户名、邮箱、设备 ID、设备名称**同样以主密钥加密落盘（`*_enc`），另存 HMAC 索引（`*_hash`）用于查找与消息文件命名，**无明文**。短信**发送方号码 `from`** 也加密为 `sender_enc`（绑定设备 ID），消息文件名用设备 ID 的 HMAC。主密钥 = 二进制内基值 `sdwl88` + `config.ini [security] appKey` 追加串（拼接）派生；基值不落盘、追加串可选写在配置里。只拿到 `data` 目录但拿不到配置追加串时无法解密 Token 或短信。
 - **密码**：PBKDF2-SHA256（210000 次迭代）+ 每用户随机盐，常量时间比较；哈希与盐本身也用内置密钥做 AES-256-GCM 加密，并以「用户 ID + 用户名」为附加认证数据，落盘只有 `cred_enc`。因此改 `meta.json` 里的字段、或把别人的 `cred_enc` 整段复制过来都无法伪造登录，密文被改动则直接认证失败。
@@ -260,3 +260,34 @@ go test ./...
 ```
 
 集成测试覆盖加解密往返、Token 与登录凭证不明文落盘、旧数据迁移、篡改或跨用户复制 `cred_enc` 后无法登录、数据主密钥由 ini 追加串拼接派生、注册授权码校验与 ini 覆盖、设备唯一性、设备不存在/越权、短信明文正确返回及明文不落盘、多行短信格式解析与结构化返回、修改密码（且用户名不可修改）、邮箱绑定与找回密码、图形验证码与按 IP 锁定（锁 IP 不锁账号）、设备心跳在线判定、GET 方式接口、INI 配置解析、邮件未配置时禁用、后台 API 整包密文信封往返（含明文请求被拒）、认证接口密文往返（账号密码不明文，明文请求被拒，不带 cookie 的兼容）、JS 动态注入随机 key（每次不同且与 Cookie 一致、禁止缓存）、短信接口仍明文等流程。
+
+## 推送历史
+
+仓库地址：`https://github.com/lcssdwl/dx.git`（分支 `master`）
+
+| 提交 | 说明 |
+| --- | --- |
+| `304be43` | feat: 新消息铃声与设备未读红标 |
+| `1afca31` | feat: 删除设备按钮移到设备列表右侧，短信面板按钮改为关闭 |
+| `367bcbb` | feat: 内置 HTTPS 与 HTTP 自动跳转 HTTPS |
+| `0400f1a` | init: 短信中心单二进制服务（含前端整包加密与安全加固） |
+
+> 说明：历史曾被清空并重建为单一根提交 `0400f1a`，其上为后续功能提交。以上均已推送到远程 `master`。
+
+## 编译产物下载
+
+编译脚本 `build.bat` / `build.sh` 会生成以下单文件二进制（静态编译，无 libc 依赖，前端资源已内嵌）：
+
+| 平台 / 架构 | 产物文件 |
+| --- | --- |
+| Windows x86_64 | `dx-server-windows-amd64.exe` |
+| Linux x86_64 | `dx-server-linux-amd64` |
+| Linux ARM64 | `dx-server-linux-arm64` |
+
+- 源码与 Release 下载：`https://github.com/lcssdwl/dx/releases`（若已发布编译产物）或 `https://github.com/lcssdwl/dx` 克隆后自行编译。
+- 本地编译：`build.bat`（Windows）/ `build.sh`（Linux），或手动：
+  ```bash
+  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dx-server-linux-amd64 .
+  CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dx-server-linux-arm64 .
+  ```
+- 二进制未纳入 Git（被 `.gitignore` 忽略），请以源码编译或 Release 附件为准。
