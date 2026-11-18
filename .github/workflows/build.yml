@@ -52,4 +52,4 @@ jobs:
             dx-server-linux-amd64 \
             dx-server-linux-arm64 \
             --title "$TAG" \
-            --generate-notes
+            --notes-file RELEASE_NOTES.md
