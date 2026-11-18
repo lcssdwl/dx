@@ -68,7 +68,8 @@ func TestProtoListenerSplitAndRedirect(t *testing.T) {
 	}
 
 	// TLS 请求应被分流到 HTTPS 服务并拿到正常响应。
-	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+	transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, DisableKeepAlives: true}
+	client := &http.Client{Transport: transport}
 	res, err := client.Get("https://" + addr + "/sdwl/login.js")
 	if err != nil {
 		t.Fatal(err)
