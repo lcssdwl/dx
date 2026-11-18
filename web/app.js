@@ -8,6 +8,51 @@
   let mailEnabled = false;
   let toastTimer = null;
   let encKey = null; // 由 dx_session + client_key 派生的 AES-GCM CryptoKey
+  let unread = loadUnread();       // 设备 id -> 已读到的 last_msg_id
+  let pingAudio = null;            // Web Audio 上下文（首次交互后创建）
+  let soundOn = localStorage.getItem('dx_sound') !== 'off';
+
+  function loadUnread() {
+    try { return JSON.parse(localStorage.getItem('dx_unread') || '{}') || {}; } catch { return {}; }
+  }
+  function saveUnread() {
+    try { localStorage.setItem('dx_unread', JSON.stringify(unread)); } catch { /* 忽略隐私模式 */ }
+  }
+
+  // 浏览器要求用户交互后才能播放音频；首次点击时解锁。
+  function unlockAudio() {
+    if (pingAudio) return;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) pingAudio = new Ctx();
+    } catch { pingAudio = null; }
+  }
+
+  // 播放短促提示音（两声"叮"），无需音频文件。
+  function playPing() {
+    if (!soundOn || !pingAudio) return;
+    try {
+      if (pingAudio.state === 'suspended') pingAudio.resume();
+      const now = pingAudio.currentTime;
+      [[880, 0], [1174.66, 0.16]].forEach(([freq, t]) => {
+        const osc = pingAudio.createOscillator();
+        const gain = pingAudio.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.2, now + t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.28);
+        osc.connect(gain).connect(pingAudio.destination);
+        osc.start(now + t);
+        osc.stop(now + t + 0.3);
+      });
+    } catch { /* 忽略音频错误 */ }
+  }
+
+  // 判断设备是否有未读：last_msg_id 存在且与已读记录不同。
+  function isUnread(d) {
+    return !!d.last_msg_id && unread[d.id] !== d.last_msg_id;
+  }
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -170,13 +215,30 @@
 
   // ---------- 设备列表 ----------
 
+  let devicesLoadedOnce = false;
+
   async function loadDevices(silent = false) {
     try {
       const data = await api('api/devices');
-      devices = data.items || [];
+      const next = data.items || [];
+      if (devicesLoadedOnce) {
+        const prev = new Map(devices.map((d) => [d.id, d.last_msg_id || '']));
+        const chatOpen = document.body.classList.contains('show-chat');
+        const hasNew = next.some((d) => {
+          const id = d.last_msg_id || '';
+          const old = prev.get(d.id);
+          // 仅当短信面板正打开且是该设备时静音；停留在设备列表时所有新消息都响铃。
+          const viewingThis = chatOpen && d.id === currentId;
+          return id && old !== undefined && id !== old && !viewingThis;
+        });
+        if (hasNew) playPing();
+      }
+      devicesLoadedOnce = true;
+      devices = next;
       $('userName').textContent = me ? me.username : '-';
       $('userAvatar').textContent = me ? me.username.slice(0, 1).toUpperCase() : '我';
-      $('deviceCount').textContent = devices.length + ' 台设备';
+      const unreadCount = devices.filter(isUnread).length;
+      $('deviceCount').textContent = devices.length + ' 台设备' + (unreadCount ? ' · ' + unreadCount + ' 台未读' : '');
       renderDevices();
       if (currentId && !devices.some((d) => d.id === currentId)) {
         currentId = null;
@@ -198,10 +260,11 @@
     }
     el.innerHTML = list.map((d) => {
       const preview = d.preview ? esc(d.preview) : (d.count ? d.count + ' 条短信' : '暂无短信');
-      return `<div class="device-item ${d.id === currentId ? 'active' : ''}" data-id="${esc(d.id)}">
+      const badge = isUnread(d) ? '<span class="unread-badge">新消息</span>' : '';
+      return `<div class="device-item ${d.id === currentId ? 'active' : ''} ${isUnread(d) ? 'unread' : ''}" data-id="${esc(d.id)}">
         <div class="dev-icon">▣</div>
         <div class="dev-body">
-          <div class="dev-top"><strong><span class="${d.online ? 'online-dot' : 'offline-dot'}"></span>${esc(d.name || d.id)}</strong><time class="${d.online ? 'online' : ''}">${d.online ? '在线 · ' : ''}${fmtTime(d.last_seen)}</time></div>
+          <div class="dev-top"><strong>${badge}<span class="${d.online ? 'online-dot' : 'offline-dot'}"></span>${esc(d.name || d.id)}</strong><time class="${d.online ? 'online' : ''}">${d.online ? '在线 · ' : ''}${fmtTime(d.last_seen)}</time></div>
           <div class="dev-preview">${preview}</div>
           <div class="dev-id">${esc(d.id)}</div>
         </div>
@@ -222,6 +285,11 @@
   function selectDevice(id) {
     currentId = id;
     const d = devices.find((x) => x.id === id);
+    // 打开即标记已读：把当前 last_msg_id 记为已读位置，清除红标。
+    if (d && d.last_msg_id) {
+      unread[id] = d.last_msg_id;
+      saveUnread();
+    }
     $('chatName').textContent = d ? (d.name || d.id) : id;
     $('chatId').textContent = '设备 ID：' + id;
     renderDevices();
@@ -244,6 +312,13 @@
         Array.from(box.querySelectorAll('.sms-row.expanded')).map((row) => row.dataset.id)
       );
       renderMessages(data.items || [], scroll, expanded);
+      // 正在查看的设备，加载到最新短信后清除其未读标记。
+      const d = devices.find((x) => x.id === currentId);
+      if (d && d.last_msg_id && unread[currentId] !== d.last_msg_id) {
+        unread[currentId] = d.last_msg_id;
+        saveUnread();
+        renderDevices();
+      }
     } catch (e) {
       if (!silent) toast(e.message, true);
     }
@@ -455,6 +530,18 @@
     $('btnClear').onclick = clearMessages;
     $('btnCloseChat').onclick = () => document.body.classList.remove('show-chat');
     $('btnBack').onclick = () => document.body.classList.remove('show-chat');
+    $('btnSound').onclick = () => {
+      soundOn = !soundOn;
+      localStorage.setItem('dx_sound', soundOn ? 'on' : 'off');
+      $('btnSound').textContent = soundOn ? '🔔' : '🔇';
+      $('btnSound').title = soundOn ? '消息铃声：开' : '消息铃声：关';
+      if (soundOn) { unlockAudio(); playPing(); }
+    };
+    $('btnSound').textContent = soundOn ? '🔔' : '🔇';
+    $('btnSound').title = soundOn ? '消息铃声：开' : '消息铃声：关';
+    // 首次用户交互解锁 Web Audio（浏览器自动播放策略）。
+    document.addEventListener('pointerdown', unlockAudio, { once: true });
+    document.addEventListener('keydown', unlockAudio, { once: true });
     $('searchInput').addEventListener('input', renderDevices);
     $('btnLogout').onclick = async () => {
       await authFetch('api/auth/logout', 'POST');

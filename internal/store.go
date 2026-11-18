@@ -645,8 +645,9 @@ type deviceDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 	LastSeen  time.Time `json:"last_seen"`
 	Count     int       `json:"count"`
-	Preview   string    `json:"preview"` // 最后一条短信明文（由 handler 解密填充）
-	Online    bool      `json:"online"`  // 20 秒内有心跳即在线
+	LastMsgID string    `json:"last_msg_id"` // 最后一条短信 id，供前端判断未读
+	Preview   string    `json:"preview"`     // 最后一条短信明文（由 handler 解密填充）
+	Online    bool      `json:"online"`      // 20 秒内有心跳即在线
 }
 
 func (s *Store) ListDevices(userID string) []deviceDTO {
@@ -661,6 +662,7 @@ func (s *Store) ListDevices(userID string) []deviceDTO {
 		dto := deviceDTO{ID: d.ID, Name: d.Name, CreatedAt: d.CreatedAt, LastSeen: d.CreatedAt, Count: len(msgs)}
 		if len(msgs) > 0 {
 			dto.LastSeen = msgs[len(msgs)-1].CreatedAt
+			dto.LastMsgID = msgs[len(msgs)-1].ID
 		}
 		out = append(out, dto)
 	}
