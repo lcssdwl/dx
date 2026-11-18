@@ -1,0 +1,4 @@
+data/
+*.exe
+dx-server-linux-amd64
+dx-server-linux-arm64

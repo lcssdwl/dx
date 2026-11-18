@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>云讯短信中心</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 未登录时跳转提示，脚本会自动跳到独立登录页 -->
+  <section id="authRedirect" class="auth-view">
+    <div class="auth-card">
+      <div class="brand">
+        <div class="brand-icon">✉</div>
+        <div>
+          <h1>云讯短信中心</h1>
+          <p>正在跳转到登录页…</p>
+        </div>
+      </div>
+      <p class="hint"><a href="login.html">若未自动跳转，请点此登录</a></p>
+    </div>
+  </section>
+
+  <!-- 主应用 -->
+  <section id="appView" class="app-view hidden">
+    <aside class="sidebar" id="sidebar">
+      <header class="side-head">
+        <div class="user-line">
+          <div class="avatar" id="userAvatar">我</div>
+          <div class="user-meta">
+            <strong id="userName">-</strong>
+            <span id="deviceCount">0 台设备</span>
+          </div>
+          <button class="icon-btn" id="btnSettings" title="账号设置" aria-label="账号设置">⚙</button>
+          <button class="icon-btn" id="btnToken" title="查看 Token" aria-label="查看 Token">🔑</button>
+          <button class="icon-btn" id="btnLogout" title="退出登录" aria-label="退出登录"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button>
+        </div>
+        <div class="side-tools">
+          <input id="searchInput" class="search" type="search" placeholder="搜索设备">
+          <button class="btn primary small" id="btnNewDevice">+ 新建设备</button>
+        </div>
+      </header>
+      <div class="device-list" id="deviceList"></div>
+      <footer class="side-foot">
+        <button class="link-btn" id="btnApiDoc">接口文档</button>
+        <span>数据已加密存储</span>
+      </footer>
+    </aside>
+
+    <main class="chat-panel" id="chatPanel">
+      <header class="chat-head">
+        <button class="icon-btn back-btn" id="btnBack" aria-label="返回设备列表">‹</button>
+        <div class="chat-title">
+          <strong id="chatName">选择一个设备</strong>
+          <span id="chatId">左侧列表可查看该设备收到的短信</span>
+        </div>
+        <button class="icon-btn danger" id="btnClear" title="清空短信" aria-label="清空短信">🗑</button>
+        <button class="icon-btn danger" id="btnDelete" title="删除设备" aria-label="删除设备">✕</button>
+      </header>
+      <div class="messages sms-list" id="messages">
+        <div class="empty-chat">
+          <div class="empty-icon">📋</div>
+          <p>还没有短信</p>
+          <span>设备上报后，短信会以列表形式显示在这里</span>
+        </div>
+      </div>
+      <footer class="chat-foot">
+        <span>短信列表 · 点击条目查看原始报文</span>
+        <button class="link-btn" id="btnRefresh">刷新</button>
+      </footer>
+    </main>
+  </section>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="modalRoot"></div>
+  <script src="app.js"></script>
+</body>
+</html>
