@@ -265,3 +265,5 @@ go test ./...
 
 - [提交历史记录](https://github.com/lcssdwl/dx/commits/master)
 - [编译产物下载](https://github.com/lcssdwl/dx/releases)
+
+自动编译：`.github/workflows/build.yml` 配置了 GitHub Actions，push 到 `master` 或手动触发时自动运行测试并交叉编译三平台二进制（产物作为 Actions 工件保留）；推送 `v*` 标签时自动创建 Release 并上传三个二进制到上方下载地址。
